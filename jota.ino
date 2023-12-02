@@ -251,7 +251,7 @@ void loop() {
         time_t now = timeClient.getEpochTime();  // registra el tiempo de medición
 
         String json = "{\"time\": " + (String)now + ",";
-        json += " \"time_lap\": " + (String)time_lap + ",";
+        json += " \"delta\": " + (String)time_lap + ",";
         json += " \"node\": " + (String)node + ",";
         json += " \"acc_x\": " + (String)(acc_x) + ",";
         json += " \"acc_y\": " + (String)(acc_y) + ",";
@@ -262,7 +262,8 @@ void loop() {
         json += " \"mag_x\": 0,";
         json += " \"mag_y\": 0,";
         json += " \"mag_z\": 0,";
-        json += " \"temp\": " + (String)temp + "}";
+        json += " \"temp\": " + (String)temp + ",";
+        json += " \"start\": " + (String)start + "}";
 
         if (protocol == "http") {
           api.addHeader("Content-Type", "application/json");
