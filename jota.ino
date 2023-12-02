@@ -36,6 +36,7 @@ PubSubClient mqttclient(espClient);
 
 // Variables y constantes globales de CONFIGURACION
 int node = 2;  // Cambiar para cada nuevo nodo
+int start = 0;
 int time_update = 1;
 int time_sensor = 500;  //ms
 int time_reset = 0;
@@ -129,6 +130,7 @@ void setup() {
     }
   }
 
+  start += 1;
   // actualiza configuración
   delay(100);
   if (load_setup_server()) {
@@ -277,9 +279,9 @@ void loop() {
           udp.endPacket();
         }
         if (protocol == "mqtt0") {
-          const int length = json.length(); 
+          const int length = json.length();
           char* payload = new char[length + 1];
-          json.toCharArray(payload, json.length()+1);
+          json.toCharArray(payload, json.length() + 1);
           mqttclient.publish(topic, payload);
         }
         if (protocol == "mqtt1") {
@@ -300,7 +302,7 @@ void loop() {
 
 // segundo hilo de ejecución dedicado a la configuración, no cambia con sensor
 void loop1() {
-  vTaskDelay(pdMS_TO_TICKS(1000));                     // retrado de 1 seg el watchdog de la tarea
+  vTaskDelay(pdMS_TO_TICKS(1000));                           // retrado de 1 seg el watchdog de la tarea
   if ((millis() - time_passed_update) > time_update * 1000)  //Repetir cada minuto: Actualizar la configuración.
   {
     digitalWrite(LED_BLUE, HIGH);
@@ -361,8 +363,7 @@ bool wifi_connect(const String& ssid2, const String& password2) {
 bool load_setup_server() {
 
   HTTPClient http;  // para conectarse al servicio de configuración
-  String json_node = "{\"node\": " + (String)node + ",";
-  json_node += " \"start\": 0}";
+  String json_node = "{\"node\":" + (String)node + ",\"start\":" + (String)start + "}";
   if (!http.begin(rest_server + "/nodes/init")) {
     Serial.println("Error Update");
     return (false);
@@ -379,23 +380,20 @@ bool load_setup_server() {
       delay(50);
       return (false);
     } else {
-      if ((int)doc["active"] == 1) {
-        // Abre el archivo en modo de escritura
-        File file = LittleFS.open("/config.json", "w");
-        if (!file) {
-          Serial.println("Error al abrir el archivo");
-          return (false);
-        }
-        // Guarda el objeto JSON en el archivo
-        serializeJson(doc, file);
-        // Cierra el archivo
-        file.close();
-        Serial.println("Datos guardados en REGISTRO");
-        return (true);
-      } else {
-        active = doc["active"].as<int>();
-        Serial.println("Active no fue 1");
+
+      // Abre el archivo en modo de escritura
+      File file = LittleFS.open("/config.json", "w");
+      if (!file) {
+        Serial.println("Error al abrir el archivo");
+        return (false);
       }
+      // Guarda el objeto JSON en el archivo
+      serializeJson(doc, file);
+      // Cierra el archivo
+      file.close();
+      Serial.println("Datos guardados en REGISTRO");
+      return (true);
+
       return (false);
     }
   } else {
@@ -450,6 +448,7 @@ bool load_setup() {
   time_reset = doc["time_reset"].as<int>();
   protocol = doc["protocol"].as<String>();
   active = doc["active"].as<int>();
+  start = doc["start"].as<int>();
   xSemaphoreGive(bigLock);
   Serial.println("Setup Cargado");
   return true;
