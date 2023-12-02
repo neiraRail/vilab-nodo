@@ -111,7 +111,7 @@ void setup() {
   //carga de datos de configuración si hay le da preferencia, en caso contario usa por defecto
 
   Serial.println("Inicio Configuración:");
-  //load_setup();
+  load_setup();
 
   //load_setup();
 
@@ -120,7 +120,7 @@ void setup() {
   if (!wifi_connect(ssid, password)) {
     if (!wifi_connect(ssid, password)) {
       if (!wifi_connect(ssid, password)) {
-        if (!wifi_connect((const char*)"sensor", (const char*)"1234567890")) {
+        if (!wifi_connect("sensor", "1234567890")) {
           Serial.print("Error WIFI");
           delay(2000);
           ESP.restart();  // Intentar conexión a una red por defecto con datos móviles para cargar el setup en línea.
