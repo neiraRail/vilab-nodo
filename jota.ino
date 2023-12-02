@@ -4,6 +4,7 @@
 #include <ArduinoJson.h>
 #include <RAK12033-IIM42652.h>  // Librería sensor
 #include <LittleFS.h>           // Sistema de archivos
+#include <PubSubClient.h>       // MQTT client
 
 #define FORMAT_LITTLEFS_IF_FAILED true
 
@@ -26,9 +27,19 @@ uint16_t udpServerPort = 8080;  // Puerto del servidor
 // servidor para actualizar la confifuración
 String serverREST = "http://200.13.4.208:8080";  // server configuración
 
+
+// MQTT config
+const char* mqtt_broker = "200.13.4.208";
+const char* topic = "lab/data";
+const char* mqtt_username = "RAK";
+const char* mqtt_password = "_";
+const int mqtt_port = 1883;
+
+
 WiFiUDP udp;
 HTTPClient api;
-
+WiFiClient espClient;
+PubSubClient mqttclient(espClient);
 
 // Variables y constantes globales
 int node = 2;  // Cambiar para cada nuevo nodo
@@ -143,6 +154,21 @@ void setup() {
       ;
   }
 
+  //Inicializar MQTT
+  mqttclient.setServer(mqtt_broker, mqtt_port);
+  while (!mqttclient.connected()) {
+    String client_id = "esp32-client-";
+    client_id += String(WiFi.macAddress());
+    Serial.printf("The client %s connects to the public MQTT broker\n", client_id.c_str());
+    if (mqttclient.connect(client_id.c_str(), mqtt_username, mqtt_password)) {
+      Serial.println("Public EMQX MQTT broker connected");
+    } else {
+      Serial.print("failed with state ");
+      Serial.print(mqttclient.state());
+      delay(2000);
+    }
+  }
+
   // PARA QUE???
   Wire.begin();
   Wire.setClock(400000);
@@ -255,13 +281,18 @@ void loop() {
           udp.endPacket();
         }
         if (protocol == "mqtt0") {
-          Serial.println("MQTT0 no implementado");
+          const int length = json.length(); 
+          char* payload = new char[length + 1];
+          json.toCharArray(payload, json.length()+1);
+          mqttclient.publish(topic, payload);
         }
         if (protocol == "mqtt1") {
-          Serial.println("MQTT1 no implementado");
+          Serial.println("MQTT1 no soportado");
+          return;
         }
         if (protocol == "mqtt2") {
-          Serial.println("MQTT2 no implementado");
+          Serial.println("MQTT2 no soportado");
+          return;
         }
 
         if (time_lap > 150) { Serial.println(json); }  // imprime al inicio VALOR DE REGERENCIA
