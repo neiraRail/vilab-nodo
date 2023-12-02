@@ -16,41 +16,37 @@ WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, ntpServer, gmtOffset_sec, daylightOffset_sec);
 
 
-// Variables y constantes globales para WiFi
-String ssid = "oficinaCEIS";
-String password = "cGr3ECF2rZq42EB";
-
 // Variables y constantes globales para UDP envio registros
 IPAddress udpServerIP = IPAddress(200, 13, 4, 208);
 uint16_t udpServerPort = 8080;  // Puerto del servidor
 
-// servidor para actualizar la confifuración
-String serverREST = "http://200.13.4.208:8080";  // server configuración
 
-
-// MQTT config
+// Confuguración para MQTT
 const char* mqtt_broker = "200.13.4.208";
 const char* topic = "lab/data";
 const char* mqtt_username = "RAK";
 const char* mqtt_password = "_";
 const int mqtt_port = 1883;
 
-
+// Clientes udp, http, wifi y mqtt
 WiFiUDP udp;
 HTTPClient api;
 WiFiClient espClient;
 PubSubClient mqttclient(espClient);
 
-// Variables y constantes globales
+// Variables y constantes globales de CONFIGURACION
 int node = 2;  // Cambiar para cada nuevo nodo
-int delay_update = 1;
-int delay_sensor = 500;  //ms
-int time_event = 0;
+int time_update = 1;
+int time_sensor = 500;  //ms
 int time_reset = 0;
-int sleep_node = 1;  // 0 or 1
 int active = 0;
 String protocol = "";
-time_t timeout_lec = 0, time_update = 0;
+String ssid = "oficinaCEIS";
+String password = "cGr3ECF2rZq42EB";
+String rest_server = "http://200.13.4.208:8080";  // server configuración
+
+// Otras variables
+time_t timeout_lec = 0, time_passed_update = 0;
 int time_lap = 0;  //ms
 
 
@@ -75,7 +71,7 @@ bool load_setup_server();
 bool load_setup();
 void esploop1(void* pvParameters);
 void loop1();  // Cada minuto actualiza la config, cada time_reset horas reinicia.
-void loop();   // Lee una medición lo más rapido que puede (sobre delay_sensor) y la envía por udp.
+void loop();   // Lee una medición lo más rapido que puede (sobre time_sensor) y la envía por udp.
 void setup();  //Inicio, Serial, FS, semáforo, wifi, config, reloj, wire, IMU y el segundo hilo.
 void setup1();
 
@@ -148,7 +144,7 @@ void setup() {
   }
 
   //HTTP para enviar data
-  if (!api.begin(serverREST + "/lectura")) {
+  if (!api.begin(rest_server + "/lectura")) {
     Serial.println("Error API");
     for (;;)
       ;
@@ -217,12 +213,12 @@ void loop() {
     if (protocol != "http" && protocol != "udp" && protocol != "mqtt0" && protocol != "mqtt1" && protocol != "mqtt2") {
       Serial.println("No es un protocolo válido, utiliza 'http', 'udp', 'mqtt0', 'mqtt1' o 'mqtt2'");
       Serial.print("Se esperará: ");
-      Serial.println(delay_update);
-      delay(delay_update * 1000);
+      Serial.println(time_update);
+      delay(time_update * 1000);
     }
     time_lap = (millis() - timeout_lec);  // la primera vez es un valor mayor para marcar la refrencia de valores de inicio
 
-    if ((time_lap > delay_sensor) && sleep_node) {
+    if ((time_lap > time_sensor)) {
 
       digitalWrite(LED_GREEN, HIGH);  //LED verde de lectura se enciende
       timeout_lec = millis();
@@ -305,11 +301,11 @@ void loop() {
 // segundo hilo de ejecución dedicado a la configuración, no cambia con sensor
 void loop1() {
   vTaskDelay(pdMS_TO_TICKS(1000));                     // retrado de 1 seg el watchdog de la tarea
-  if ((millis() - time_update) > delay_update * 1000)  //Repetir cada minuto: Actualizar la configuración.
+  if ((millis() - time_passed_update) > time_update * 1000)  //Repetir cada minuto: Actualizar la configuración.
   {
     digitalWrite(LED_BLUE, HIGH);
     Serial.println("Update");
-    time_update = millis();
+    time_passed_update = millis();
     if (WiFi.status() != WL_CONNECTED) {
       if (!wifi_connect(ssid, password)) { ESP.restart(); }
     }
@@ -318,12 +314,12 @@ void loop1() {
     } else {
       Serial.println("Error al cargar Setup");
     }
-    Serial.println(String(millis() - time_update));  //Cuánto demoró en conectar y cargar setup
+    Serial.println(String(millis() - time_passed_update));  //Cuánto demoró en conectar y cargar setup
     digitalWrite(LED_BLUE, HIGH);
   }
 
   else {
-    delay(delay_sensor * 4);
+    delay(time_sensor * 4);
   }
 
   if ((time_reset > 0) && (millis() > time_reset * 3600000)) {  // reinicia cada time_reset horas
@@ -367,7 +363,7 @@ bool load_setup_server() {
   HTTPClient http;  // para conectarse al servicio de configuración
   String json_node = "{\"node\": " + (String)node + ",";
   json_node += " \"start\": 0}";
-  if (!http.begin(serverREST + "/nodes/init")) {
+  if (!http.begin(rest_server + "/nodes/init")) {
     Serial.println("Error Update");
     return (false);
   }
@@ -445,15 +441,14 @@ bool load_setup() {
   //  udpServerPort = doc["udpServerPort"].as<uint16_t>();
   ssid = doc["ssid"].as<String>();
   password = doc["password"].as<String>();
-  serverREST = doc["serverREST"].as<String>();
+  rest_server = doc["rest_server"].as<String>();
   node = doc["node"].as<int>();
-  delay_update = doc["delay_update"].as<int>();
-  delay_sensor = doc["delay_sensor"].as<int>();
+  time_update = doc["time_update"].as<int>();
+  time_sensor = doc["time_sensor"].as<int>();
   //  sense_a = doc["sense_a"].as<float>();
   //  sense_g = doc["sense_g"].as<float>();
   time_reset = doc["time_reset"].as<int>();
   protocol = doc["protocol"].as<String>();
-  //  sleep_node = doc["sleep_node"].as<int>();
   active = doc["active"].as<int>();
   xSemaphoreGive(bigLock);
   Serial.println("Setup Cargado");
