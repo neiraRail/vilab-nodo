@@ -37,11 +37,14 @@ PubSubClient mqttclient(espClient);
 // Variables y constantes globales de CONFIGURACION
 int node = 2;  // Cambiar para cada nuevo nodo
 int start = 0;
+int batch_id = 0;
 int time_update = 1;
 int time_sensor = 500;  //ms
 int time_reset = 0;
 int active = 0;
-String protocol = "";
+int batch_size = 10;
+String protocol = "http";
+String send_mode = "stream";
 String ssid = "oficinaCEIS";
 String password = "cGr3ECF2rZq42EB";
 String rest_server = "http://200.13.4.208:8080";  // server configuración
@@ -218,87 +221,188 @@ void loop() {
       Serial.println(time_update);
       delay(time_update * 1000);
     }
-    time_lap = (millis() - timeout_lec);  // la primera vez es un valor mayor para marcar la refrencia de valores de inicio
 
-    if ((time_lap > time_sensor)) {
+    if (send_mode == "stream") {
+      Serial.println("MODO STREAAAAM");
 
-      digitalWrite(LED_GREEN, HIGH);  //LED verde de lectura se enciende
-      timeout_lec = millis();
+      time_lap = (millis() - timeout_lec);  // la primera vez es un valor mayor para marcar la refrencia de valores de inicio
+      Serial.print("Tiempo pasado entre iteracion: ");
+      Serial.println(time_lap);
+      if ((time_lap >= time_sensor)) {
 
-      IIM42652_axis_t accel_data;
-      IIM42652_axis_t gyro_data;
-      float temp;
+        digitalWrite(LED_GREEN, HIGH);  //LED verde de lectura se enciende
+        timeout_lec = millis();
 
-      IMU.get_accel_data(&accel_data);
-      IMU.get_gyro_data(&gyro_data);
-      IMU.get_temperature(&temp);
-      //  time_t now = timeClient.getEpochTime(); //Yo lo pondría aqui para que sea mas preciso
-      acc_x = (float)accel_data.x / 2048;  //Por qué divide por 2048?
-      acc_y = (float)accel_data.y / 2048;
-      acc_z = (float)accel_data.z / 2048;
-      gyro_x = (float)gyro_data.x / 16.4;
-      gyro_y = (float)gyro_data.y / 16.4;
-      gyro_z = (float)gyro_data.z / 16.4;
+        IIM42652_axis_t accel_data;
+        IIM42652_axis_t gyro_data;
+        float temp;
 
-      if (((gyro_x_old - gyro_x) >= sense_g) or ((gyro_y_old - gyro_y) >= sense_g) or ((gyro_z_old - gyro_z) >= sense_g) or ((acc_x_old - acc_x) >= sense_a) or ((acc_y_old - acc_y) >= sense_a) or ((acc_z_old - acc_z) >= sense_a)) {
-        gyro_x_old = gyro_x;
-        gyro_y_old = gyro_y;
-        gyro_z_old = gyro_z;
-        acc_x_old = acc_x;
-        acc_y_old = acc_y;
-        acc_z_old = acc_z;
+        IMU.get_accel_data(&accel_data);
+        IMU.get_gyro_data(&gyro_data);
+        IMU.get_temperature(&temp);
+        //  time_t now = timeClient.getEpochTime(); //Yo lo pondría aqui para que sea mas preciso
+        acc_x = (float)accel_data.x / 2048;  //Por qué divide por 2048?
+        acc_y = (float)accel_data.y / 2048;
+        acc_z = (float)accel_data.z / 2048;
+        gyro_x = (float)gyro_data.x / 16.4;
+        gyro_y = (float)gyro_data.y / 16.4;
+        gyro_z = (float)gyro_data.z / 16.4;
 
-        time_t now = timeClient.getEpochTime();  // registra el tiempo de medición
+        if (((gyro_x_old - gyro_x) >= sense_g) or ((gyro_y_old - gyro_y) >= sense_g) or ((gyro_z_old - gyro_z) >= sense_g) or ((acc_x_old - acc_x) >= sense_a) or ((acc_y_old - acc_y) >= sense_a) or ((acc_z_old - acc_z) >= sense_a)) {
+          gyro_x_old = gyro_x;
+          gyro_y_old = gyro_y;
+          gyro_z_old = gyro_z;
+          acc_x_old = acc_x;
+          acc_y_old = acc_y;
+          acc_z_old = acc_z;
 
-        String json = "{\"time\": " + (String)now + ",";
-        json += " \"delta\": " + (String)time_lap + ",";
-        json += " \"node\": " + (String)node + ",";
-        json += " \"acc_x\": " + (String)(acc_x) + ",";
-        json += " \"acc_y\": " + (String)(acc_y) + ",";
-        json += " \"acc_z\": " + (String)(acc_z) + ",";
-        json += " \"gyr_x\": " + (String)(gyro_x) + ",";
-        json += " \"gyr_y\": " + (String)(gyro_y) + ",";
-        json += " \"gyr_z\": " + (String)(gyro_z) + ",";
-        json += " \"mag_x\": 0,";
-        json += " \"mag_y\": 0,";
-        json += " \"mag_z\": 0,";
-        json += " \"temp\": " + (String)temp + ",";
-        json += " \"start\": " + (String)start + "}";
+          time_t now = timeClient.getEpochTime();  // registra el tiempo de medición
 
-        if (protocol == "http") {
-          api.addHeader("Content-Type", "application/json");
-          int httpResponseCode = api.POST(json);
-          String json_update = api.getString();
-          if (httpResponseCode != 200) {
-            Serial.println("Error sending");
+          String json = "{\"time\": " + (String)now + ",";
+          json += " \"delta\": " + (String)time_lap + ",";
+          json += " \"node\": " + (String)node + ",";
+          json += " \"acc_x\": " + (String)(acc_x) + ",";
+          json += " \"acc_y\": " + (String)(acc_y) + ",";
+          json += " \"acc_z\": " + (String)(acc_z) + ",";
+          json += " \"gyr_x\": " + (String)(gyro_x) + ",";
+          json += " \"gyr_y\": " + (String)(gyro_y) + ",";
+          json += " \"gyr_z\": " + (String)(gyro_z) + ",";
+          json += " \"mag_x\": 0,";
+          json += " \"mag_y\": 0,";
+          json += " \"mag_z\": 0,";
+          json += " \"temp\": " + (String)temp + ",";
+          json += " \"start\": " + (String)start + "}";
+
+          if (protocol == "http") {
+            api.addHeader("Content-Type", "application/json");
+            int httpResponseCode = api.POST(json);
+            String json_update = api.getString();
+            if (httpResponseCode != 200) {
+              Serial.println("Error sending");
+            }
+            Serial.println(json_update);
           }
-          Serial.println(json_update);
-        }
-        if (protocol == "udp") {
-          udp.beginPacket(udpServerIP, udpServerPort);
-          udp.print(json);
-          udp.endPacket();
-        }
-        if (protocol == "mqtt0") {
-          const int length = json.length();
-          char* payload = new char[length + 1];
-          json.toCharArray(payload, json.length() + 1);
-          mqttclient.publish(topic, payload);
-        }
-        if (protocol == "mqtt1") {
-          Serial.println("MQTT1 no soportado");
-          return;
-        }
-        if (protocol == "mqtt2") {
-          Serial.println("MQTT2 no soportado");
-          return;
-        }
+          if (protocol == "udp") {
+            udp.beginPacket(udpServerIP, udpServerPort);
+            udp.print(json);
+            udp.endPacket();
+          }
+          if (protocol == "mqtt0") {
+            const int length = json.length();
+            char* payload = new char[length + 1];
+            json.toCharArray(payload, json.length() + 1);
+            mqttclient.publish(topic, payload);
+          }
+          if (protocol == "mqtt1") {
+            Serial.println("MQTT1 no soportado");
+            return;
+          }
+          if (protocol == "mqtt2") {
+            Serial.println("MQTT2 no soportado");
+            return;
+          }
 
-        if (time_lap > 150) { Serial.println(json); }  // imprime al inicio VALOR DE REGERENCIA
-        digitalWrite(LED_GREEN, LOW);                  //LED verde de lectura se apaga
+          if (time_lap > 150) { Serial.println(json); }  // imprime al inicio VALOR DE REGERENCIA
+          digitalWrite(LED_GREEN, LOW);                  //LED verde de lectura se apaga
+        }
       }
-    }
-  }
+      return;
+    } else if (send_mode == "batch") {
+      Serial.println("MODO BATCH!!!");
+      DynamicJsonDocument data(4096);
+      batch_id++;
+      data["id"] = batch_id;
+      data["len"] = batch_size;
+      JsonArray batch = data.createNestedArray("batch");
+      int i = 0;
+      while (i < batch_size) {
+
+        time_lap = (millis() - timeout_lec);  // la primera vez es un valor mayor para marcar la refrencia de valores de inicio
+        if ((time_lap >= time_sensor)) {
+
+          digitalWrite(LED_GREEN, HIGH);  //LED verde de lectura se enciende
+          timeout_lec = millis();
+
+          IIM42652_axis_t accel_data;
+          IIM42652_axis_t gyro_data;
+          float temp;
+
+          IMU.get_accel_data(&accel_data);
+          IMU.get_gyro_data(&gyro_data);
+          IMU.get_temperature(&temp);
+          //  time_t now = timeClient.getEpochTime(); //Yo lo pondría aqui para que sea mas preciso
+          acc_x = (float)accel_data.x / 2048;  //Por qué divide por 2048?
+          acc_y = (float)accel_data.y / 2048;
+          acc_z = (float)accel_data.z / 2048;
+          gyro_x = (float)gyro_data.x / 16.4;
+          gyro_y = (float)gyro_data.y / 16.4;
+          gyro_z = (float)gyro_data.z / 16.4;
+
+          if (((gyro_x_old - gyro_x) >= sense_g) or ((gyro_y_old - gyro_y) >= sense_g) or ((gyro_z_old - gyro_z) >= sense_g) or ((acc_x_old - acc_x) >= sense_a) or ((acc_y_old - acc_y) >= sense_a) or ((acc_z_old - acc_z) >= sense_a)) {
+            gyro_x_old = gyro_x;
+            gyro_y_old = gyro_y;
+            gyro_z_old = gyro_z;
+            acc_x_old = acc_x;
+            acc_y_old = acc_y;
+            acc_z_old = acc_z;
+
+            time_t now = timeClient.getEpochTime();  // registra el tiempo de medición
+
+
+            JsonObject lectura = batch.createNestedObject();
+            lectura["time"] = now;
+            lectura["delta"] = time_lap;
+            lectura["node"] = node;
+            lectura["acc_x"] = acc_x;
+            lectura["acc_y"] = acc_y;
+            lectura["acc_z"] = acc_z;
+            lectura["gyr_x"] = gyro_x;
+            lectura["gyr_y"] = gyro_y;
+            lectura["gyr_z"] = gyro_z;
+            lectura["mag_x"] = 0;
+            lectura["mag_y"] = 0;
+            lectura["mag_z"] = 0;
+            lectura["temp"] = 0;
+            lectura["start"] = start;
+          }
+          i++;
+
+        }  //if time_lap>time_sensor
+      }    //For loop
+      String jsonString;
+      serializeJson(data, jsonString);
+      Serial.println(jsonString);
+      if (protocol == "http") {
+        api.addHeader("Content-Type", "application/json");
+        int httpResponseCode = api.POST(jsonString);
+        String json_update = api.getString();
+        if (httpResponseCode != 200) {
+          Serial.println("Error sending");
+        }
+        Serial.println(json_update);
+      }
+      if (protocol == "udp") {
+        udp.beginPacket(udpServerIP, udpServerPort);
+        udp.print(jsonString);
+        udp.endPacket();
+      }
+      if (protocol == "mqtt0") {
+        const int length = jsonString.length();
+        char* payload = new char[length + 1];
+        jsonString.toCharArray(payload, length + 1);
+        mqttclient.publish(topic, payload);
+      }
+      if (protocol == "mqtt1") {
+        Serial.println("MQTT1 no soportado");
+        return;
+      }
+      if (protocol == "mqtt2") {
+        Serial.println("MQTT2 no soportado");
+        return;
+      }
+      digitalWrite(LED_GREEN, LOW);
+    }  //if send_mode==batch
+  }    // if active==1
 }
 
 // segundo hilo de ejecución dedicado a la configuración, no cambia con sensor
@@ -317,6 +421,7 @@ void loop1() {
     } else {
       Serial.println("Error al cargar Setup");
     }
+    Serial.print("Tiempo para conectar y cargar setup: ");
     Serial.println(String(millis() - time_passed_update));  //Cuánto demoró en conectar y cargar setup
     digitalWrite(LED_BLUE, HIGH);
   }
@@ -444,10 +549,12 @@ bool load_setup() {
   node = doc["node"].as<int>();
   time_update = doc["time_update"].as<int>();
   time_sensor = doc["time_sensor"].as<int>();
+  batch_size = doc["batch_size"].as<int>();
   //  sense_a = doc["sense_a"].as<float>();
   //  sense_g = doc["sense_g"].as<float>();
   time_reset = doc["time_reset"].as<int>();
   protocol = doc["protocol"].as<String>();
+  send_mode = doc["send_mode"].as<String>();
   active = doc["active"].as<int>();
   start = doc["start"].as<int>();
   xSemaphoreGive(bigLock);
