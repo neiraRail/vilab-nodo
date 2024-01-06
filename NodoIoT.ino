@@ -117,8 +117,6 @@ void setup() {
   Serial.println("Inicio Configuración:");
   load_setup();
 
-  //load_setup();
-
   // Conexión a la red WiFi, intenta 3 veces sin tener que volver a reiniciarse, sino intenta con red por defecto.
   Serial.println("Inicio WIFI");
   if (!wifi_connect(ssid, password)) {
@@ -170,45 +168,45 @@ void setup() {
     }
   }
 
-  // PARA QUE???
-  Wire.begin();
-  Wire.setClock(400000);
 
-  // Inicialización del sensor TDK
-  if (IMU.begin() == false) {
-    while (1) {
-      Serial.println("IIM-42652 no está conectado.");
-      delay(5000);
+    Wire.begin();
+    Wire.setClock(400000);
+
+    // Inicialización del sensor TDK
+    if (IMU.begin() == false) {
+      while (1) {
+        Serial.println("IIM-42652 no está conectado.");
+        delay(5000);
+      }
     }
+
+    IMU.accelerometer_enable();
+    IMU.gyroscope_enable();
+    IMU.temperature_enable();
+
+    IMU.set_accel_fsr(IIM42652_ACCEL_CONFIG0_FS_SEL_16g);
+    IMU.set_accel_frequency(IIM42652_ACCEL_CONFIG0_ODR_50_HZ);
+
+    //IMU.enable_accel_low_power_mode();
+    //IMU.wake_on_motion_configuration( ACCEL_X_THR, ACCEL_Y_THR, ACCEL_Z_THR);
+    Serial.println("Sensor READY");
+
+  // crea segundo hilo de ejecución
+  #if defined(ESP_PLATFORM)
+    xTaskCreatePinnedToCore(
+      esploop1,               /* Task function. */
+      "loop1",                /* name of task. */
+      10000,                  /* Stack size of task */
+      NULL,                   /* parameter of the task */
+      1,                      /* priority of the task */
+      &task_loop1,            /* Task handle to keep track of created task */
+      !ARDUINO_RUNNING_CORE); /* pin task to core 0 */
+  #endif
+
+    // Apagar el LED para indicar el final del setup
+    digitalWrite(LED_BLUE, LOW);
+    digitalWrite(LED_GREEN, LOW);
   }
-
-  IMU.accelerometer_enable();
-  IMU.gyroscope_enable();
-  IMU.temperature_enable();
-
-  IMU.set_accel_fsr(IIM42652_ACCEL_CONFIG0_FS_SEL_16g);
-  IMU.set_accel_frequency(IIM42652_ACCEL_CONFIG0_ODR_50_HZ);
-
-  //IMU.enable_accel_low_power_mode();
-  //IMU.wake_on_motion_configuration( ACCEL_X_THR, ACCEL_Y_THR, ACCEL_Z_THR);
-  Serial.println("Sensor READY");
-
-// crea segundo hilo de ejecución
-#if defined(ESP_PLATFORM)
-  xTaskCreatePinnedToCore(
-    esploop1,               /* Task function. */
-    "loop1",                /* name of task. */
-    10000,                  /* Stack size of task */
-    NULL,                   /* parameter of the task */
-    1,                      /* priority of the task */
-    &task_loop1,            /* Task handle to keep track of created task */
-    !ARDUINO_RUNNING_CORE); /* pin task to core 0 */
-#endif
-
-  // Apagar el LED para indicar el final del setup
-  digitalWrite(LED_BLUE, LOW);
-  digitalWrite(LED_GREEN, LOW);
-}
 
 void setup1() {}
 
@@ -223,12 +221,12 @@ void loop() {
     }
 
     if (send_mode == "stream") {
-      Serial.println("MODO STREAAAAM");
 
       time_lap = (millis() - timeout_lec);  // la primera vez es un valor mayor para marcar la refrencia de valores de inicio
-      Serial.print("Tiempo pasado entre iteracion: ");
-      Serial.println(time_lap);
+      // Serial.print("Tiempo pasado entre iteracion: ");
+      // Serial.println(time_lap);
       if ((time_lap >= time_sensor)) {
+        Serial.println("MODO STREAAAAM");
 
         digitalWrite(LED_GREEN, HIGH);  //LED verde de lectura se enciende
         timeout_lec = millis();
@@ -259,19 +257,19 @@ void loop() {
           time_t now = timeClient.getEpochTime();  // registra el tiempo de medición
 
           String json = "{\"time\": " + (String)now + ",";
-          json += " \"delta\": " + (String)time_lap + ",";
-          json += " \"node\": " + (String)node + ",";
-          json += " \"acc_x\": " + (String)(acc_x) + ",";
-          json += " \"acc_y\": " + (String)(acc_y) + ",";
-          json += " \"acc_z\": " + (String)(acc_z) + ",";
-          json += " \"gyr_x\": " + (String)(gyro_x) + ",";
-          json += " \"gyr_y\": " + (String)(gyro_y) + ",";
-          json += " \"gyr_z\": " + (String)(gyro_z) + ",";
-          json += " \"mag_x\": 0,";
-          json += " \"mag_y\": 0,";
-          json += " \"mag_z\": 0,";
-          json += " \"temp\": " + (String)temp + ",";
-          json += " \"start\": " + (String)start + "}";
+          json += " \"delta\":" + (String)time_lap + ",";
+          json += " \"node\":" + (String)node + ",";
+          json += " \"acc_x\":" + (String)(acc_x) + ",";
+          json += " \"acc_y\":" + (String)(acc_y) + ",";
+          json += " \"acc_z\":" + (String)(acc_z) + ",";
+          json += " \"gyr_x\":" + (String)(gyro_x) + ",";
+          json += " \"gyr_y\":" + (String)(gyro_y) + ",";
+          json += " \"gyr_z\":" + (String)(gyro_z) + ",";
+          json += " \"mag_x\":0,";
+          json += " \"mag_y\":0,";
+          json += " \"mag_z\":0,";
+          json += " \"temp\":" + (String)temp + ",";
+          json += " \"start\":" + (String)start + "}";
 
           if (protocol == "http") {
             api.addHeader("Content-Type", "application/json");
@@ -288,10 +286,12 @@ void loop() {
             udp.endPacket();
           }
           if (protocol == "mqtt0") {
-            const int length = json.length();
-            char* payload = new char[length + 1];
-            json.toCharArray(payload, json.length() + 1);
-            mqttclient.publish(topic, payload);
+            // const int length = json.length();
+            // char* payload = new char[length + 1];
+            // json.toCharArray(payload, json.length() + 1);
+            bool success = mqttclient.publish(topic, json.c_str());
+            Serial.print("MQTT success: ");
+            Serial.println(success);
           }
           if (protocol == "mqtt1") {
             Serial.println("MQTT1 no soportado");
@@ -371,7 +371,7 @@ void loop() {
       }    //For loop
       String jsonString;
       serializeJson(data, jsonString);
-      Serial.println(jsonString);
+      // Serial.println(jsonString);
       if (protocol == "http") {
         api.addHeader("Content-Type", "application/json");
         int httpResponseCode = api.POST(jsonString);
@@ -383,14 +383,23 @@ void loop() {
       }
       if (protocol == "udp") {
         udp.beginPacket(udpServerIP, udpServerPort);
+        Serial.println(jsonString);
         udp.print(jsonString);
         udp.endPacket();
       }
       if (protocol == "mqtt0") {
-        const int length = jsonString.length();
-        char* payload = new char[length + 1];
-        jsonString.toCharArray(payload, length + 1);
-        mqttclient.publish(topic, payload);
+        Serial.println("Sending with MQTT0");
+        // Length (with one extra character for the null terminator)
+        int str_len = jsonString.length() + 1;
+        // Prepare the character array (the buffer)
+        char char_array[str_len];
+        // Copy it over
+        jsonString.toCharArray(char_array, str_len);
+        // Serial.println(jsonString.c_str());
+        Serial.println(char_array);
+        bool success = mqttclient.publish(topic, char_array);
+        Serial.print("MQTT success: ");
+        Serial.println(success);
       }
       if (protocol == "mqtt1") {
         Serial.println("MQTT1 no soportado");
@@ -423,7 +432,7 @@ void loop1() {
     }
     Serial.print("Tiempo para conectar y cargar setup: ");
     Serial.println(String(millis() - time_passed_update));  //Cuánto demoró en conectar y cargar setup
-    digitalWrite(LED_BLUE, HIGH);
+    digitalWrite(LED_BLUE, LOW);
   }
 
   else {
@@ -453,7 +462,7 @@ bool wifi_connect(const String& ssid2, const String& password2) {
   Serial.println(ssid2);
   Serial.println(password2);
   WiFi.begin(ssid2.c_str(), password2.c_str());
-  while (WiFi.status() != WL_CONNECTED && connAttempts < 20) {
+  while (WiFi.status() != WL_CONNECTED && connAttempts < 30) {
     delay(200);
     Serial.print(".");
     connAttempts++;
@@ -470,6 +479,7 @@ bool load_setup_server() {
 
   HTTPClient http;  // para conectarse al servicio de configuración
   String json_node = "{\"node\":" + (String)node + ",\"start\":" + (String)start + "}";
+  Serial.println(json_node);
   if (!http.begin(rest_server + "/nodes/init")) {
     Serial.println("Error Update");
     return (false);
@@ -486,7 +496,6 @@ bool load_setup_server() {
       delay(50);
       return (false);
     } else {
-
       // Abre el archivo en modo de escritura
       File file = LittleFS.open("/config.json", "w");
       if (!file) {
